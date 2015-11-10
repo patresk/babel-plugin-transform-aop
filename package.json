@@ -1,0 +1,15 @@
+{
+  "name": "babel-plugin-transform-aop",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "author": "Patrk Gallik",
+  "license": "ISC",
+  "dependencies": {
+    "babel": "^6.0.15",
+    "babel-core": "^6.1.2",
+    "babel-plugin-transform-es2015-classes": "^6.1.2",
+    "babel-preset-es2015": "^6.1.2",
+    "babylon": "^6.1.2"
+  }
+}
