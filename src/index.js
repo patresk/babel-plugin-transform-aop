@@ -19,19 +19,34 @@ function applyAspectsOnMethod(klass, method, aspects, types) {
   aspects.forEach(aspect => {
     console.log('[debug] Applying aspect ' + aspect.pointcut + ', ' + aspect.joinpoint + ' on ', className + '.' + method.key.name);
 
-    if (aspect.joinpoint === 'before') {
+    if (aspect.joinpoint === 'before call') {
       aspect.code.reverse().forEach(statement=> {
         method.body.body.unshift(statement);
       });
     }
 
-    else if (aspect.joinpoint === 'after') {
+    else if (aspect.joinpoint === 'after call') {
       aspect.code.forEach(statement=> {
         method.body.body.push(statement);
       });
     }
 
-    else if (aspect.joinpoint === 'around') {
+    else if (aspect.joinpoint === 'after returning') {
+      // to implement
+    }
+
+    else if (aspect.joinpoint === 'after thowing') {
+      var methodBody = method.body.body;
+      method.body.body = [];
+      let tryStatement = types.TryStatement();
+      let catchClauseParam = aspect.params[0] ? aspect.params[0] : 'err';
+      tryStatement.block = types.BlockStatement(methodBody);
+      tryStatement.handler = types.CatchClause(
+        types.Identifier(catchClauseParam),types.BlockStatement(aspect.code));
+      method.body.body.push(tryStatement);
+    }
+
+    else if (aspect.joinpoint === 'around call') {
       babel.traverse(aspect.ast, {
         ExpressionStatement: function(path) {
           if (path.node.expression.type === 'CallExpression') {
@@ -50,42 +65,53 @@ function applyAspectsOnMethod(klass, method, aspects, types) {
       });
     }
 
-    else if (aspect.joinpoint === 'throw') {
-      var methodBody = method.body.body;
-      method.body.body = [];
-      let tryStatement = types.TryStatement();
-      let catchClauseParam = aspect.params[0] ? aspect.params[0] : 'err';
-      tryStatement.block = types.BlockStatement(methodBody);
-      tryStatement.handler = types.CatchClause(
-        types.Identifier(catchClauseParam),types.BlockStatement(aspect.code));
-      method.body.body.push(tryStatement);
-    }
-
-    else if (aspect.joinpoint === 'before_execution') {
-      var classMethod = types.ClassMethod(
-        'method',
-        types.Identifier('_' + aspect.joinpoint + '_' + method.key.name),
-        [],types.BlockStatement(aspect.code));
-      klass.body.body.push(classMethod);
-    }
+    //else if (aspect.joinpoint === 'before_execution') {
+    //  var classMethod = types.ClassMethod(
+    //    'method',
+    //    types.Identifier('_' + aspect.joinpoint + '_' + method.key.name),
+    //    [],types.BlockStatement(aspect.code));
+    //  klass.body.body.push(classMethod);
+    //}
 
   });
 }
 
+function getAspectsFromParameters() {
+  if (process.argv.indexOf('--aspects') === -1) {
+    return null;
+  }
+  let aspectsFileIndex = process.argv.indexOf('--aspects') + 1;
+  if (process.argv[aspectsFileIndex]) {
+    return process.argv[aspectsFileIndex];
+  }
+}
+
 module.exports = function({ types: t }) {
 
-  var context = {};
-  vm.createContext(context);
-  vm.runInContext(fs.readFileSync('./aspects.js', 'utf8'), context);
+  let aspectsFile = getAspectsFromParameters();
 
-  var aspects = context.aspects.map(sandboxAspect => {
-    let aspect = sandboxAspect;
-    let transformed = babel.transform(sandboxAspect.advice.toString());
-    aspect.ast = transformed.ast;
-    aspect.code = transformed.ast.program.body[0].body.body;
-    aspect.params = aspect.ast.program.body[0].params.map(param => param.name);
-    return aspect;
-  });
+  if (!aspectsFile) {
+    console.error('File with aspects is not specified. Use --aspects <filename> parameter.');
+    return null;
+  }
+
+  var context = {};
+  var aspects = [];
+
+  context.aspect = function(rule, advice) {
+    let transformed = babel.transform(advice.toString());
+    let parsed = rule.split(' ');
+    aspects.push({
+      joinpoint: parsed[0] + ' ' + parsed[1],
+      pointcut: parsed[2],
+      ast: transformed.ast,
+      code: transformed.ast.program.body[0].body.body,
+      params: transformed.ast.program.body[0].params.map(param => param.name)
+    });
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(aspectsFile, 'utf8'), context);
 
   return {
     visitor: {

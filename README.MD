@@ -10,26 +10,39 @@ $ npm install babel-plugin-transform-aop
 
 ## Usage
 
-### Via `.babelrc` (Recommended)
+### Via `.babelrc` 
 
-**.babelrc**
-
-```json
-{
-  "plugins": ["transform-aop"]
-}
-```
+Not yet.
 
 ### Via CLI
 
 ```sh
-$ babel --plugins transform-aop script.js
+$ babel --plugins node-modules/babe;-plugin-aop/lib/script.js --aspects <aspectFile>
 ```
 
-### Via Node API
+### Example of aspects file
 
-```javascript
-require("babel-core").transform("code", {
-  plugins: ["transform-aop"]
+```js
+
+aspect('after throwing MyClass.throwMethod*', function advice(exception) {
+  console.log('Exception:', exception);
 });
+
+aspect('before call MyClass.set*', function advice() {
+  console.log('Updating argument..');
+  if (typeof value !== 'number' || isNaN(value)) {
+    console.log('Wrong parameter!..');
+    value = parseInt(value, 10);
+  }
+});
+
+aspect('around call MyClass.aroundCall', function advice() {
+  console.log('before');
+  try {
+    proceed();
+  } catch(e) {
+    console.log('exception', e);
+  }
+  console.log('after');
+})
 ```
